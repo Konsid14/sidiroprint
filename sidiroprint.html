@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Print Service</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f6ff;
+      color: #222;
+    }
+
+    header {
+      background: #243b6b;
+      color: white;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 {
+      margin: 0;
+    }
+
+    .buttons button {
+      margin-left: 10px;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .signin {
+      background: white;
+      color: #243b6b;
+    }
+
+    .signup {
+      background: #4c8dff;
+      color: white;
+    }
+
+    .hero {
+      text-align: center;
+      padding: 60px 20px;
+    }
+
+    .hero h2 {
+      font-size: 40px;
+      margin-bottom: 10px;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      margin-bottom: 40px;
+    }
+
+    input, textarea {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    button.submit {
+      width: 100%;
+      background: #243b6b;
+      color: white;
+      border: none;
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .card {
+      background: #eef3ff;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+    }
+
+    footer {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>3D Print Service</h1>
+
+  <div class="buttons">
+    <button class="signin" onclick="openLogin()">Sign In</button>
+    <button class="signup" onclick="openSignup()">Sign Up</button>
+  </div>
+</header>
+
+<section class="hero">
+  <h2>Στείλε το STL σου για 3D Printing</h2>
+  <p>Ανέβασε το αρχείο σου και θα το εκτυπώσουμε και θα στο στείλουμε ταχυδρομικά!</p>
+</section>
+
+<div class="container">
+  <h2>Αποστολή STL Αρχείου</h2>
+
+  <form id="uploadForm">
+    <input type="text" id="fullname" placeholder="Ονοματεπώνυμο" required>
+
+    <input type="text" id="address" placeholder="Διεύθυνση Κατοικίας" required>
+
+    <input type="tel" id="phone" placeholder="Τηλέφωνο" required>
+
+    <input type="email" id="email" placeholder="Email" required>
+
+    <label>Ανέβασε STL αρχείο:</label>
+    <input type="file" id="stlfile" accept=".stl" required>
+
+    <textarea id="notes" placeholder="Σημειώσεις για το print"></textarea>
+
+    <button type="submit" class="submit">Αποστολή Παραγγελίας</button>
+  </form>
+</div>
+
+<div class="container hidden" id="loginBox">
+  <h2>Admin Login</h2>
+
+  <input type="text" id="adminUser" placeholder="Username">
+  <input type="password" id="adminPass" placeholder="Password">
+
+  <button class="submit" onclick="loginAdmin()">Login</button>
+</div>
+
+<div class="container hidden" id="signupBox">
+  <h2>Sign Up</h2>
+
+  <input type="text" placeholder="Username">
+  <input type="email" placeholder="Email">
+  <input type="password" placeholder="Password">
+
+  <button class="submit" onclick="fakeSignup()">Create Account</button>
+</div>
+
+<div class="container hidden" id="adminPanel">
+  <h2>Admin Panel</h2>
+  <p>Εδώ φαίνονται οι παραγγελίες πελατών.</p>
+
+  <div id="orders"></div>
+</div>
+
+<footer>
+  © 2026 3D Print Service
+</footer>
+
+<script>
+  const ADMIN_USERNAME = "konsidiro";
+  const ADMIN_PASSWORD = "194062122180614";
+
+  function openLogin() {
+    document.getElementById("loginBox").classList.remove("hidden");
+    document.getElementById("signupBox").classList.add("hidden");
+  }
+
+  function openSignup() {
+    document.getElementById("signupBox").classList.remove("hidden");
+    document.getElementById("loginBox").classList.add("hidden");
+  }
+
+  function fakeSignup() {
+    alert("Ο λογαριασμός δημιουργήθηκε! (demo)");
+  }
+
+  document.getElementById("uploadForm").addEventListener("submit", function(e) {
+    e.preventDefault();
+
+    const order = {
+      name: document.getElementById("fullname").value,
+      address: document.getElementById("address").value,
+      phone: document.getElementById("phone").value,
+      email: document.getElementById("email").value,
+      file: document.getElementById("stlfile").files[0]?.name || "No file",
+      notes: document.getElementById("notes").value
+    };
+
+    let orders = JSON.parse(localStorage.getItem("orders") || "[]");
+    orders.push(order);
+    localStorage.setItem("orders", JSON.stringify(orders));
+
+    alert("Η παραγγελία στάλθηκε επιτυχώς!");
+
+    document.getElementById("uploadForm").reset();
+  });
+
+  function loginAdmin() {
+    const username = document.getElementById("adminUser").value;
+    const password = document.getElementById("adminPass").value;
+
+    if(username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      document.getElementById("adminPanel").classList.remove("hidden");
+      loadOrders();
+      alert("Καλώς ήρθες Admin!");
+    }
+    else {
+      alert("Λάθος στοιχεία σύνδεσης");
+    }
+  }
+
+  function loadOrders() {
+    const ordersDiv = document.getElementById("orders");
+    ordersDiv.innerHTML = "";
+
+    const orders = JSON.parse(localStorage.getItem("orders") || "[]");
+
+    if(orders.length === 0) {
+      ordersDiv.innerHTML = "<p>Δεν υπάρχουν παραγγελίες.</p>";
+      return;
+    }
+
+    orders.forEach((order, index) => {
+      ordersDiv.innerHTML += `
+        <div class="card">
+          <h3>Παραγγελία #${index + 1}</h3>
+          <p><strong>Όνομα:</strong> ${order.name}</p>
+          <p><strong>Διεύθυνση:</strong> ${order.address}</p>
+          <p><strong>Τηλέφωνο:</strong> ${order.phone}</p>
+          <p><strong>Email:</strong> ${order.email}</p>
+          <p><strong>Αρχείο STL:</strong> ${order.file}</p>
+          <p><strong>Σημειώσεις:</strong> ${order.notes}</p>
+        </div>
+      `;
+    });
+  }
+</script>
+
+</body>
+</html>
