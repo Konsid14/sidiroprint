@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PrintForge — 3D Printing Service</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
   :root {
     --bg: #0a0a0a;
     --surface: #111111;
@@ -914,10 +914,15 @@ function openAdminModal() { document.getElementById('admin-modal').classList.add
 function closeAdminModal() { document.getElementById('admin-modal').classList.remove('show'); }
 
 // The ⬡ Admin button opens admin modal
-document.querySelector('.btn-admin').addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (isAdmin) { showAdminPanel(); return; }
-  openAdminModal();
+document.addEventListener('DOMContentLoaded', function() {
+  var adminBtn = document.querySelector('.btn-admin');
+  if (adminBtn) {
+    adminBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (isAdmin) { showAdminPanel(); return; }
+      openAdminModal();
+    });
+  }
 });
 
 function switchTab(tab) {
@@ -1134,7 +1139,7 @@ function scrollToUpload() {
 }
 
 // Init
-updateNav();
+document.addEventListener('DOMContentLoaded', updateNav);
 </script>
 </body>
 </html>
