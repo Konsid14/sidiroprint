@@ -220,9 +220,15 @@ footer { border-top: 1px solid #1a1a1a; padding: 28px 40px; text-align: center; 
 
     <div class="file-preview" id="fprev">
       <div style="color:#ff5c00;font-size:1.3rem;">&#9651;</div>
-      <div>
+      <div style="flex:1;">
         <div class="fname" id="fname"></div>
         <div class="fsize" id="fsize"></div>
+        <div id="fvol" style="font-size:0.72rem;color:#888;margin-top:3px;"></div>
+      </div>
+      <div id="fprice" style="text-align:right;padding-right:12px;">
+        <div style="font-size:0.7rem;color:#666;text-transform:uppercase;letter-spacing:1px;">Est. Price</div>
+        <div id="fprice-val" style="font-size:1.4rem;font-weight:bold;color:#ff5c00;">—</div>
+        <div style="font-size:0.68rem;color:#555;">excl. shipping</div>
       </div>
       <button class="fx" onclick="clearFile()">&#10005;</button>
     </div>
@@ -297,7 +303,7 @@ footer { border-top: 1px solid #1a1a1a; padding: 28px 40px; text-align: center; 
     <thead>
       <tr>
         <th>#</th><th>Customer</th><th>File</th><th>Material</th>
-        <th>Qty</th><th>Date</th><th>Status</th><th>Actions</th>
+        <th>Qty</th><th>Volume</th><th>Price</th><th>Date</th><th>Status</th><th>Actions</th>
       </tr>
     </thead>
     <tbody id="otbody"></tbody>
@@ -361,6 +367,7 @@ var db       = null;
 var curUser  = null;
 var isAdmin  = false;
 var selFile  = null;
+var selVolume = 0;
 var orders   = [];   // cached after load
 
 // ── INDEXED DB INIT ──────────────────────────────────────────────────────────
@@ -519,7 +526,7 @@ function exitAdmin() {
 function renderOrders() {
   var tb = document.getElementById('otbody');
   if (!orders.length) {
-    tb.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#555;padding:48px;">No orders yet.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#555;padding:48px;">No orders yet.</td></tr>';
   } else {
     var html = '';
     for (var i = 0; i < orders.length; i++) {
@@ -531,6 +538,8 @@ function renderOrders() {
       html += '<td style="color:#ff5c00;">' + esc(o.fileName) + '</td>';
       html += '<td>' + esc(o.mat) + '</td>';
       html += '<td>' + o.qty + '</td>';
+      html += '<td style="color:#888;font-size:0.78rem;">' + (o.volume ? o.volume + ' cm³' : '—') + '</td>';
+      html += '<td style="color:#ff5c00;font-weight:bold;">' + (o.price ? '€' + o.price : '—') + '</td>';
       html += '<td style="color:#555;font-size:0.75rem;">' + esc(o.date) + '</td>';
       html += '<td>'
            + '<select class="sselect" onchange="setStatus(' + i + ',this.value)">'
@@ -611,22 +620,111 @@ function fmtSize(b) {
   return (b/1048576).toFixed(1) + ' MB';
 }
 
+// ── STL PARSER ────────────────────────────────────────────────────────────────
+// Returns the mesh volume in cm³ using the signed tetrahedron method.
+// Works for both ASCII and binary STL.
+function parseSTLVolume(buffer) {
+  var view = new DataView(buffer);
+  var isBinary = false;
+
+  // Binary STL: first 80 bytes = header, next 4 = triangle count
+  // ASCII STL starts with "solid"
+  try {
+    var header = '';
+    for (var i = 0; i < 5; i++) header += String.fromCharCode(view.getUint8(i));
+    isBinary = (header.toLowerCase() !== 'solid');
+    // Extra check: some binary STLs also start with "solid"
+    if (!isBinary) {
+      var triCount = view.getUint32(80, true);
+      var expectedSize = 84 + triCount * 50;
+      if (Math.abs(buffer.byteLength - expectedSize) < 10) isBinary = true;
+    }
+  } catch(e) { isBinary = false; }
+
+  var volumeMM3 = 0;
+
+  if (isBinary) {
+    var numTri = view.getUint32(80, true);
+    var offset = 84;
+    for (var t = 0; t < numTri; t++) {
+      offset += 12; // skip normal
+      var v1x = view.getFloat32(offset,    true); var v1y = view.getFloat32(offset+4,  true); var v1z = view.getFloat32(offset+8,  true); offset += 12;
+      var v2x = view.getFloat32(offset,    true); var v2y = view.getFloat32(offset+4,  true); var v2z = view.getFloat32(offset+8,  true); offset += 12;
+      var v3x = view.getFloat32(offset,    true); var v3y = view.getFloat32(offset+4,  true); var v3z = view.getFloat32(offset+8,  true); offset += 12;
+      offset += 2; // attribute byte count
+      // Signed volume of tetrahedron from origin
+      volumeMM3 += signedTetraVol(v1x,v1y,v1z, v2x,v2y,v2z, v3x,v3y,v3z);
+    }
+  } else {
+    // ASCII STL
+    var text = new TextDecoder('utf-8').decode(buffer);
+    var re   = /vertex\s+([\-\d.eE+]+)\s+([\-\d.eE+]+)\s+([\-\d.eE+]+)/g;
+    var verts = [];
+    var m;
+    while ((m = re.exec(text)) !== null) {
+      verts.push([parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])]);
+    }
+    for (var v = 0; v < verts.length - 2; v += 3) {
+      volumeMM3 += signedTetraVol(
+        verts[v][0],   verts[v][1],   verts[v][2],
+        verts[v+1][0], verts[v+1][1], verts[v+1][2],
+        verts[v+2][0], verts[v+2][1], verts[v+2][2]
+      );
+    }
+  }
+
+  var mm3 = Math.abs(volumeMM3);
+  return mm3 / 1000; // mm³ → cm³
+}
+
+function signedTetraVol(ax,ay,az, bx,by,bz, cx,cy,cz) {
+  return (ax*(by*cz - bz*cy) - ay*(bx*cz - bz*cx) + az*(bx*cy - by*cx)) / 6.0;
+}
+
 function setFile(file) {
   selFile = file;
   document.getElementById('fname').textContent = file.name;
   document.getElementById('fsize').textContent = fmtSize(file.size);
-  document.getElementById('fprev').className = 'file-preview show';
-  toast('"' + file.name + '" ready.', 'ok');
+  document.getElementById('fvol').textContent  = 'Calculating volume...';
+  document.getElementById('fprice-val').textContent = '...';
+  document.getElementById('fprev').className   = 'file-preview show';
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var vol   = parseSTLVolume(e.target.result);  // cm³
+      var price = vol * 0.1;                         // €0.10 per cm³
+      var qty   = parseInt(document.getElementById('f-qty').value) || 1;
+      selVolume = vol;
+      document.getElementById('fvol').textContent = 'Volume: ' + vol.toFixed(2) + ' cm³';
+      document.getElementById('fprice-val').textContent = '€' + (price * qty).toFixed(2);
+      toast('"' + file.name + '" — ' + vol.toFixed(2) + ' cm³', 'ok');
+    } catch(err) {
+      document.getElementById('fvol').textContent = 'Could not read volume.';
+      document.getElementById('fprice-val').textContent = '—';
+      toast('Uploaded (volume unreadable).', '');
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 function clearFile() {
   selFile = null;
+  selVolume = 0;
   document.getElementById('fileinput').value = '';
   document.getElementById('fprev').className = 'file-preview';
 }
 
 document.getElementById('fileinput').addEventListener('change', function() {
   if (this.files && this.files[0]) setFile(this.files[0]);
+});
+
+document.getElementById('f-qty').addEventListener('input', function() {
+  if (selVolume > 0) {
+    var qty   = parseInt(this.value) || 1;
+    var price = selVolume * 0.1 * qty;
+    document.getElementById('fprice-val').textContent = '€' + price.toFixed(2);
+  }
 });
 
 var dz = document.getElementById('dropzone');
@@ -674,6 +772,8 @@ function submitOrder() {
       email:    email,
       addr:     addr,
       notes:    notes,
+      volume:   selVolume > 0 ? selVolume.toFixed(2) : null,
+      price:    selVolume > 0 ? (selVolume * 0.1 * (parseInt(qty)||1)).toFixed(2) : null,
       status:   'pending',
       date:     date,
       uid:      curUser ? curUser.email : null
